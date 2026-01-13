@@ -12,11 +12,11 @@ This document tracks implementation progress for the BandBrain MVP.
 |-------|-------------|-----------|----------|
 | Phase 1: Foundation | 53 | 38 | 72% |
 | Phase 2: Core Features | 63 | 39 | 62% |
-| Phase 3: Audio & Visualization | 21 | 8 | 38% |
-| Phase 4: Tab & Training | 52 | 24 | 46% |
-| Phase 5: Recording & Setlists | 46 | 0 | 0% |
+| Phase 3: Audio & Visualization | 21 | 11 | 52% |
+| Phase 4: Tab & Training | 52 | 31 | 60% |
+| Phase 5: Recording & Setlists | 46 | 26 | 57% |
 | Phase 6: Polish & Testing | 52 | 0 | 0% |
-| **Total** | **287** | **109** | **38%** |
+| **Total** | **287** | **145** | **51%** |
 
 ---
 
@@ -193,10 +193,10 @@ This document tracks implementation progress for the BandBrain MVP.
 
 ## Phase 3: Audio & Visualization
 
-### 3.1 Waveform Computation (5 tasks)
-- [ ] 3.1.1 Create convex/waveform.ts with computeWaveform action
-- [ ] 3.1.2 Implement savePeaks internal mutation
-- [ ] 3.1.3 Add proper audio decoding
+### 3.1 Waveform Computation (5 tasks) - 3/5
+- [x] 3.1.1 Create convex/waveform.ts with computeWaveform action
+- [x] 3.1.2 Implement savePeaks internal mutation
+- [x] 3.1.3 Add proper audio decoding
 - [ ] 3.1.4 Trigger waveform computation on upload
 - [ ] 3.1.5 Add loading state
 
@@ -279,20 +279,20 @@ This document tracks implementation progress for the BandBrain MVP.
 - [x] 4.5.5 Create TransposeHelper component
 - [ ] 4.5.6 Add to song detail page
 
-### 4.6 Daily Lick System (8 tasks)
-- [ ] 4.6.1 Create convex/licks.ts with getDailyLick query
-- [ ] 4.6.2 Implement lick history tracking
-- [ ] 4.6.3 Add saveLick mutation
-- [ ] 4.6.4 Add listUserLicks query
+### 4.6 Daily Lick System (8 tasks) - 4/8
+- [x] 4.6.1 Create convex/licks.ts with getDailyLick query
+- [x] 4.6.2 Implement lick history tracking
+- [x] 4.6.3 Add saveLick mutation
+- [x] 4.6.4 Add listUserLicks query
 - [ ] 4.6.5 Create DailyLick component
 - [ ] 4.6.6 Integrate AlphaTab for display
 - [ ] 4.6.7 Add metronome integration
 - [ ] 4.6.8 Create licks page
 
-### 4.7 AI Lick Generation (8 tasks)
-- [ ] 4.7.1 Implement checkAiRateLimit mutation
-- [ ] 4.7.2 Implement generateAiLick action
-- [ ] 4.7.3 Implement saveGeneratedLick mutation
+### 4.7 AI Lick Generation (8 tasks) - 3/8
+- [x] 4.7.1 Implement checkAiRateLimit mutation
+- [x] 4.7.2 Implement generateAiLick action
+- [x] 4.7.3 Implement saveGeneratedLick mutation
 - [ ] 4.7.4 Add rate limit display
 - [ ] 4.7.5 Add style selector
 - [ ] 4.7.6 Add difficulty selector
@@ -309,31 +309,31 @@ This document tracks implementation progress for the BandBrain MVP.
 
 ## Phase 5: Recording & Setlists
 
-### 5.1 Recording Projects (12 tasks)
-- [ ] 5.1.1 Create convex/recordingProjects.ts with list query
-- [ ] 5.1.2 Add getById query
-- [ ] 5.1.3 Add create mutation
-- [ ] 5.1.4 Add update mutation
-- [ ] 5.1.5 Add softDelete mutation
-- [ ] 5.1.6 Add updateStatus mutation
+### 5.1 Recording Projects (12 tasks) - 7/12
+- [x] 5.1.1 Create convex/recordingProjects.ts with list query
+- [x] 5.1.2 Add getById query
+- [x] 5.1.3 Add create mutation
+- [x] 5.1.4 Add update mutation
+- [x] 5.1.5 Add softDelete mutation
+- [x] 5.1.6 Add updateStatus mutation
 - [ ] 5.1.7 Create recording projects list page
 - [ ] 5.1.8 Create RecordingProjectCard component
 - [ ] 5.1.9 Create RecordingProjectForm component
 - [ ] 5.1.10 Create new recording project page
 - [ ] 5.1.11 Create recording project detail page
-- [ ] 5.1.12 Add status workflow
+- [x] 5.1.12 Add status workflow
 
-### 5.2 Recording Songs (6 tasks)
-- [ ] 5.2.1 Add listSongsByProject query
-- [ ] 5.2.2 Add addSongToProject mutation
-- [ ] 5.2.3 Add removeSongFromProject mutation
-- [ ] 5.2.4 Add reorderSongs mutation
-- [ ] 5.2.5 Allow linking to existing band songs
+### 5.2 Recording Songs (6 tasks) - 5/6
+- [x] 5.2.1 Add listSongsByProject query
+- [x] 5.2.2 Add addSongToProject mutation
+- [x] 5.2.3 Add removeSongFromProject mutation
+- [x] 5.2.4 Add reorderSongs mutation
+- [x] 5.2.5 Allow linking to existing band songs
 - [ ] 5.2.6 Create song list UI
 
-### 5.3 Tracking Grid (7 tasks)
-- [ ] 5.3.1 Add getTrackingGrid query
-- [ ] 5.3.2 Add updateTrackStatus mutation
+### 5.3 Tracking Grid (7 tasks) - 2/7
+- [x] 5.3.1 Add getTrackingGrid query
+- [x] 5.3.2 Add updateTrackStatus mutation
 - [ ] 5.3.3 Create TrackingGrid component
 - [ ] 5.3.4 Add status colors
 - [ ] 5.3.5 Add performer assignment
@@ -359,26 +359,26 @@ This document tracks implementation progress for the BandBrain MVP.
 - [ ] 5.5.6 Click timestamp to seek
 - [ ] 5.5.7 Add marker display on waveform
 
-### 5.6 Setlists (11 tasks)
-- [ ] 5.6.1 Create convex/setlists.ts with listByBand query
-- [ ] 5.6.2 Add getById query
-- [ ] 5.6.3 Add create mutation
-- [ ] 5.6.4 Add update mutation
-- [ ] 5.6.5 Add softDelete mutation
-- [ ] 5.6.6 Implement recalculateSetlistDuration helper
-- [ ] 5.6.7 Add getSetlistWithDuration query
+### 5.6 Setlists (11 tasks) - 7/11
+- [x] 5.6.1 Create convex/setlists.ts with listByBand query
+- [x] 5.6.2 Add getById query
+- [x] 5.6.3 Add create mutation
+- [x] 5.6.4 Add update mutation
+- [x] 5.6.5 Add softDelete mutation
+- [x] 5.6.6 Implement recalculateSetlistDuration helper
+- [x] 5.6.7 Add getSetlistWithDuration query
 - [ ] 5.6.8 Create setlists list page
 - [ ] 5.6.9 Create SetlistCard component
 - [ ] 5.6.10 Create new setlist page
 - [ ] 5.6.11 Create setlist detail page
 
-### 5.7 Setlist Items (9 tasks)
-- [ ] 5.7.1 Add addSongToSetlist mutation
-- [ ] 5.7.2 Add removeSongFromSetlist mutation
-- [ ] 5.7.3 Add reorderSetlistItems mutation
-- [ ] 5.7.4 Add updateSetlistItem mutation
+### 5.7 Setlist Items (9 tasks) - 5/9
+- [x] 5.7.1 Add addSongToSetlist mutation
+- [x] 5.7.2 Add removeSongFromSetlist mutation
+- [x] 5.7.3 Add reorderSetlistItems mutation
+- [x] 5.7.4 Add updateSetlistItem mutation
 - [ ] 5.7.5 Create drag-and-drop builder
-- [ ] 5.7.6 Display running duration
+- [x] 5.7.6 Display running duration
 - [ ] 5.7.7 Add gear snapshot capture
 - [ ] 5.7.8 Add transition notes
 - [ ] 5.7.9 Create print/export view
@@ -553,6 +553,34 @@ Track work sessions here to maintain context between Claude sessions.
 - Added Textarea UI component
 - **Progress:** 109/287 tasks (38%)
 - **Next:** Continue with keyboard shortcuts, song detail integration, daily lick system
+
+### Session 6 - 2026-01-13 (continued)
+- Completed Phase 3.1 - Waveform Computation backend (3/5 tasks):
+  - Created convex/waveform.ts with computeWaveform action
+  - Implemented savePeaks internal mutation
+  - Added audio buffer decoding for peak extraction
+- Completed Phase 4.6 - Daily Lick System backend (4/8 tasks):
+  - Created convex/licks.ts with getDailyLick query
+  - Implemented lick history tracking
+  - Added saveLick, updateLick, listUserLicks mutations
+- Completed Phase 4.7 - AI Lick Generation backend (3/8 tasks):
+  - Implemented checkAiRateLimit query
+  - Implemented generateAiLick action with Claude API
+  - Implemented saveGeneratedLick internal mutation
+- Completed Phase 5.1 - Recording Projects backend (7/12 tasks):
+  - Created convex/recordingProjects.ts
+  - All CRUD operations, status workflow, restore
+- Completed Phase 5.2 - Recording Songs backend (5/6 tasks):
+  - All song management within recording projects
+- Completed Phase 5.3 - Tracking Grid backend (2/7 tasks):
+  - Created getTrackingGrid and updateTrackStatus
+- Completed Phase 5.6 - Setlists backend (7/11 tasks):
+  - Created convex/setlists.ts with all mutations
+  - Implemented recalculateSetlistDuration helper
+- Completed Phase 5.7 - Setlist Items backend (5/9 tasks):
+  - All CRUD for setlist items with running duration
+- **Progress:** 145/287 tasks (51%)
+- **Next:** Create UI pages for recording projects, setlists, bounces
 
 ---
 
