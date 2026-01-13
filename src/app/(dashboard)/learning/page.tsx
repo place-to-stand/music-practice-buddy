@@ -27,7 +27,7 @@ export default function LearningPage() {
     createdAt: number;
   }> = [];
 
-  const [_isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [, setIsDeleting] = useState<string | null>(null);
   const [filter, setFilter] = useState<ProjectStatus | "all">("all");
 
   const handleDelete = async (id: string) => {

@@ -11,12 +11,12 @@ This document tracks implementation progress for the BandBrain MVP.
 | Phase | Total Tasks | Completed | Progress |
 |-------|-------------|-----------|----------|
 | Phase 1: Foundation | 53 | 38 | 72% |
-| Phase 2: Core Features | 63 | 30 | 48% |
+| Phase 2: Core Features | 63 | 39 | 62% |
 | Phase 3: Audio & Visualization | 21 | 0 | 0% |
-| Phase 4: Tab & Training | 52 | 0 | 0% |
+| Phase 4: Tab & Training | 52 | 19 | 37% |
 | Phase 5: Recording & Setlists | 46 | 0 | 0% |
 | Phase 6: Polish & Testing | 52 | 0 | 0% |
-| **Total** | **287** | **68** | **24%** |
+| **Total** | **287** | **96** | **33%** |
 
 ---
 
@@ -135,16 +135,16 @@ This document tracks implementation progress for the BandBrain MVP.
 - [ ] 2.2.16 Add practice status badges
 - [ ] 2.2.17 Add filtering by practice status
 
-### 2.3 File Storage (13 tasks) - 5/13
+### 2.3 File Storage (13 tasks) - 9/13
 - [x] 2.3.1 Create convex/files.ts with generateUploadUrl
 - [x] 2.3.2 Implement rate limiting
 - [x] 2.3.3 Add saveSongFile mutation
 - [x] 2.3.4 Add getFileUrl query
 - [x] 2.3.5 Add softDeleteFile mutation
-- [ ] 2.3.6 Create hooks/useFileUpload.ts
-- [ ] 2.3.7 Create components/audio/FileUploader.tsx
-- [ ] 2.3.8 Add file type detection
-- [ ] 2.3.9 Add client-side file size validation
+- [x] 2.3.6 Create hooks/useFileUpload.ts
+- [x] 2.3.7 Create components/audio/FileUploader.tsx
+- [x] 2.3.8 Add file type detection
+- [x] 2.3.9 Add client-side file size validation
 - [ ] 2.3.10 Display file list on song detail
 - [ ] 2.3.11 Add file download functionality
 - [ ] 2.3.12 Add file version management
@@ -177,17 +177,17 @@ This document tracks implementation progress for the BandBrain MVP.
 - [x] 2.5.12 Add category filter
 - [ ] 2.5.13 Add source URL field
 
-### 2.6 Practice Session Logging (10 tasks) - 4/10
+### 2.6 Practice Session Logging (10 tasks) - 9/10
 - [x] 2.6.1 Create convex/practiceSessions.ts with list query
 - [x] 2.6.2 Add create mutation
 - [x] 2.6.3 Add update mutation
 - [x] 2.6.4 Add delete mutation
-- [ ] 2.6.5 Create app/(dashboard)/practice-log/page.tsx
-- [ ] 2.6.6 Create PracticeSessionForm component
-- [ ] 2.6.7 Add song selection
-- [ ] 2.6.8 Add duration tracking
+- [x] 2.6.5 Create app/(dashboard)/practice-log/page.tsx
+- [x] 2.6.6 Create PracticeSessionForm component
+- [x] 2.6.7 Add song selection
+- [x] 2.6.8 Add duration tracking
 - [ ] 2.6.9 Create practice session calendar view
-- [ ] 2.6.10 Add practice statistics summary
+- [x] 2.6.10 Add practice statistics summary
 
 ---
 
@@ -239,28 +239,28 @@ This document tracks implementation progress for the BandBrain MVP.
 - [ ] 4.1.10 Handle loading and error states
 - [ ] 4.1.11 Integrate on song detail page
 
-### 4.2 Metronome (10 tasks)
-- [ ] 4.2.1 Create Metronome component
-- [ ] 4.2.2 Implement click sound generation
-- [ ] 4.2.3 Add BPM input
-- [ ] 4.2.4 Add time signature selector
-- [ ] 4.2.5 Add accent on first beat
-- [ ] 4.2.6 Add visual beat indicator
-- [ ] 4.2.7 Add tap tempo
-- [ ] 4.2.8 Add preset tempos
+### 4.2 Metronome (10 tasks) - 9/10 ✅
+- [x] 4.2.1 Create Metronome component
+- [x] 4.2.2 Implement click sound generation
+- [x] 4.2.3 Add BPM input
+- [x] 4.2.4 Add time signature selector
+- [x] 4.2.5 Add accent on first beat
+- [x] 4.2.6 Add visual beat indicator
+- [x] 4.2.7 Add tap tempo
+- [x] 4.2.8 Add preset tempos
 - [ ] 4.2.9 Implement song linking
-- [ ] 4.2.10 Create metronome page
+- [x] 4.2.10 Create metronome page
 
-### 4.3 Drone Player (9 tasks)
-- [ ] 4.3.1 Create DronePlayer component
-- [ ] 4.3.2 Implement oscillator drone
-- [ ] 4.3.3 Add root note selector
-- [ ] 4.3.4 Add octave selector
-- [ ] 4.3.5 Add major/minor/modal options
-- [ ] 4.3.6 Add fifth/third optional drones
-- [ ] 4.3.7 Add volume control
+### 4.3 Drone Player (9 tasks) - 8/9 ✅
+- [x] 4.3.1 Create DronePlayer component
+- [x] 4.3.2 Implement oscillator drone
+- [x] 4.3.3 Add root note selector
+- [x] 4.3.4 Add octave selector
+- [x] 4.3.5 Add major/minor/modal options
+- [x] 4.3.6 Add fifth/third optional drones
+- [x] 4.3.7 Add volume control
 - [ ] 4.3.8 Implement song linking
-- [ ] 4.3.9 Create drone page
+- [x] 4.3.9 Create drone page
 
 ### 4.4 Chord Progression Player (7 tasks)
 - [ ] 4.4.1 Create ChordProgPlayer component
@@ -299,9 +299,9 @@ This document tracks implementation progress for the BandBrain MVP.
 - [ ] 4.7.7 Add key selector
 - [ ] 4.7.8 Display generated lick
 
-### 4.8 Training Dashboard (4 tasks)
-- [ ] 4.8.1 Create training hub page
-- [ ] 4.8.2 Add quick links
+### 4.8 Training Dashboard (4 tasks) - 2/4
+- [x] 4.8.1 Create training hub page
+- [x] 4.8.2 Add quick links
 - [ ] 4.8.3 Show daily lick widget
 - [ ] 4.8.4 Add recent songs
 
@@ -511,6 +511,31 @@ Track work sessions here to maintain context between Claude sessions.
   - Created learning list, new, and detail pages
   - Added status filter and category filter
 - **Next:** Continue with file upload UI, practice session pages, and audio features
+
+### Session 4 - 2026-01-13
+- Completed Phase 2.3 - File Storage UI (4 new tasks, 9/13 total):
+  - Created useFileUpload hook with progress tracking
+  - Created FileUploader component with drag-and-drop
+  - Added file type detection and client-side validation
+- Completed Phase 2.6 - Practice Session Logging (5 new tasks, 9/10 total):
+  - Created practice-log page with statistics summary
+  - Created PracticeSessionForm component
+  - Added song/project selection and duration tracking
+- Completed Phase 4.2 - Metronome (9/10 tasks):
+  - Created Metronome component with Web Audio API
+  - Added click generation, tempo input, time signatures
+  - Added visual beat indicator, tap tempo, presets
+  - Created metronome page
+- Completed Phase 4.3 - Drone Player (8/9 tasks):
+  - Created DronePlayer component with oscillator synthesis
+  - Added root note, octave, fifth/third harmonics, volume control
+  - Created drone page
+- Completed Phase 4.8 - Training Dashboard (2/4 tasks):
+  - Created training hub page with quick links
+- Installed @radix-ui/react-slider for volume controls
+- Fixed all lint errors (scheduler self-reference, unused variables)
+- **Progress:** 96/287 tasks (33%)
+- **Next:** Continue with waveform player, AlphaTab, daily lick system
 
 ---
 

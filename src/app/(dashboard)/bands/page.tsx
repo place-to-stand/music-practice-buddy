@@ -22,7 +22,7 @@ export default function BandsPage() {
     createdAt: number;
   }> = [];
 
-  const [_isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [, setIsDeleting] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this band?")) return;
