@@ -33,7 +33,7 @@ This document tracks implementation progress for the BandBrain MVP.
 - [ ] 1.1.8 Create base folder structure
 - [ ] 1.1.9 Install Vitest for testing
 - [ ] 1.1.10 Install Playwright for E2E testing
-- [ ] 1.1.11 Configure Sentry error tracking
+- [ ] 1.1.11 Configure PostHog error tracking and analytics
 
 ### 1.2 Authentication (14 tasks)
 - [ ] 1.2.1 Install @convex-dev/auth package
@@ -93,7 +93,7 @@ This document tracks implementation progress for the BandBrain MVP.
 - [ ] 1.6.1 Create components/ErrorBoundary.tsx
 - [ ] 1.6.2 Integrate ErrorBoundary in dashboard layout
 - [ ] 1.6.3 Create hooks/useMutationWithRetry.ts
-- [ ] 1.6.4 Configure Sentry client
+- [ ] 1.6.4 Configure PostHog client
 - [ ] 1.6.5 Test error capture and reporting
 
 ---
@@ -468,7 +468,7 @@ This document tracks implementation progress for the BandBrain MVP.
 - [ ] 6.8.6 Review accessibility
 - [ ] 6.8.7 Add favicon and icons
 - [ ] 6.8.8 Create landing page
-- [ ] 6.8.9 Final Sentry review
+- [ ] 6.8.9 Final PostHog review
 - [ ] 6.8.10 Deploy to Vercel
 
 ---

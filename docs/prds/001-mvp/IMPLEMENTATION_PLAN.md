@@ -28,7 +28,7 @@ The implementation is divided into 6 phases, each building on the previous. Task
 - [ ] **1.1.8** Create base folder structure (`app/`, `components/`, `convex/`, `lib/`, `hooks/`)
 - [ ] **1.1.9** Install Vitest for testing
 - [ ] **1.1.10** Install Playwright for E2E testing
-- [ ] **1.1.11** Configure Sentry error tracking
+- [ ] **1.1.11** Configure PostHog error tracking and analytics
 
 ### 1.2 Authentication
 
@@ -93,7 +93,7 @@ The implementation is divided into 6 phases, each building on the previous. Task
 - [ ] **1.6.1** Create `components/ErrorBoundary.tsx`
 - [ ] **1.6.2** Integrate ErrorBoundary in dashboard layout
 - [ ] **1.6.3** Create `hooks/useMutationWithRetry.ts`
-- [ ] **1.6.4** Configure Sentry client in `sentry.client.config.ts`
+- [ ] **1.6.4** Configure PostHog client in `lib/posthog.ts`
 - [ ] **1.6.5** Test error capture and reporting
 
 ---
@@ -510,7 +510,7 @@ The implementation is divided into 6 phases, each building on the previous. Task
 - [ ] **6.8.6** Review accessibility (a11y audit)
 - [ ] **6.8.7** Add favicon and app icons
 - [ ] **6.8.8** Create landing page (if needed)
-- [ ] **6.8.9** Final Sentry configuration review
+- [ ] **6.8.9** Final PostHog configuration review
 - [ ] **6.8.10** Deploy to Vercel production
 
 ---
