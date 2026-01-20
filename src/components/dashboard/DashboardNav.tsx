@@ -11,9 +11,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Progress } from "@/components/ui/progress";
 import {
   Sheet,
   SheetContent,
@@ -34,6 +36,7 @@ const navItems = [
 export function DashboardNav() {
   const pathname = usePathname();
   const user = useQuery(api.users.current);
+  const storage = useQuery(api.files.getStorageUsage);
   const { signOut } = useAuthActions();
 
   const initials = user?.name
@@ -127,6 +130,25 @@ export function DashboardNav() {
                   )}
                 </div>
               </div>
+              {storage && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Storage</span>
+                        <span className={storage.percentUsed >= 90 ? "text-destructive font-medium" : ""}>
+                          {storage.usedFormatted} / {storage.maxFormatted}
+                        </span>
+                      </div>
+                      <Progress
+                        value={storage.percentUsed}
+                        className={`h-1.5 ${storage.percentUsed >= 90 ? "[&>div]:bg-destructive" : storage.percentUsed >= 75 ? "[&>div]:bg-amber-500" : ""}`}
+                      />
+                    </div>
+                  </DropdownMenuLabel>
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link href="/settings">Settings</Link>

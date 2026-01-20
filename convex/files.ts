@@ -1,0 +1,531 @@
+import { v } from "convex/values";
+import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
+import { getAuthUserId } from "@convex-dev/auth/server";
+
+// ============ CONSTANTS ============
+
+const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB
+const MAX_USER_STORAGE_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
+const MAX_UPLOADS_PER_HOUR = 50;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+// File types supported by the system
+export const FILE_TYPES = [
+  "audio",
+  "video",
+  "chart",
+  "tab",
+  "gp",
+  "stem",
+  "other",
+] as const;
+
+export type FileType = (typeof FILE_TYPES)[number];
+
+// External services for linked files
+export const EXTERNAL_SERVICES = [
+  "dropbox",
+  "youtube",
+  "bandcamp",
+  "google_drive",
+  "other",
+] as const;
+
+export type ExternalService = (typeof EXTERNAL_SERVICES)[number];
+
+// ============ HELPERS ============
+
+async function getCurrentUserId(ctx: MutationCtx): Promise<Id<"users">> {
+  const userId = await getAuthUserId(ctx);
+  if (!userId) {
+    throw new Error("Not authenticated");
+  }
+  return userId;
+}
+
+async function getQueryUserId(ctx: QueryCtx): Promise<Id<"users"> | null> {
+  const userId = await getAuthUserId(ctx);
+  return userId;
+}
+
+/**
+ * Verify user is a member of the band that owns the song
+ */
+async function verifySongAccess(
+  ctx: QueryCtx | MutationCtx,
+  songId: Id<"songs">,
+  userId: Id<"users">
+): Promise<{ song: NonNullable<Awaited<ReturnType<typeof ctx.db.get>>>; bandId: Id<"bands"> }> {
+  const song = await ctx.db.get(songId);
+  if (!song || song.deletedAt) {
+    throw new Error("Song not found");
+  }
+
+  const membership = await ctx.db
+    .query("bandMemberships")
+    .withIndex("by_band_user", (q) =>
+      q.eq("bandId", song.bandId).eq("userId", userId)
+    )
+    .first();
+
+  if (!membership || membership.leftAt) {
+    throw new Error("Not a member of this band");
+  }
+
+  return { song, bandId: song.bandId };
+}
+
+/**
+ * Detect external service from URL
+ */
+function detectExternalService(url: string): ExternalService {
+  const urlLower = url.toLowerCase();
+
+  if (urlLower.includes("dropbox.com")) return "dropbox";
+  if (urlLower.includes("youtube.com") || urlLower.includes("youtu.be"))
+    return "youtube";
+  if (urlLower.includes("bandcamp.com")) return "bandcamp";
+  if (urlLower.includes("drive.google.com")) return "google_drive";
+
+  return "other";
+}
+
+/**
+ * Format bytes to human readable string
+ */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+// ============ QUERIES ============
+
+/**
+ * Get all files for a song
+ */
+export const listBySong = query({
+  args: { songId: v.id("songs") },
+  handler: async (ctx, args) => {
+    const userId = await getQueryUserId(ctx);
+    if (!userId) {
+      return [];
+    }
+
+    // Verify access via song
+    try {
+      await verifySongAccess(ctx, args.songId, userId);
+    } catch {
+      return [];
+    }
+
+    const files = await ctx.db
+      .query("songFiles")
+      .withIndex("by_song_active", (q) =>
+        q.eq("songId", args.songId).eq("deletedAt", undefined)
+      )
+      .collect();
+
+    // Get URLs for uploaded files
+    const filesWithUrls = await Promise.all(
+      files.map(async (file) => {
+        let url: string | null = null;
+        if (file.storageId) {
+          url = await ctx.storage.getUrl(file.storageId);
+        } else if (file.externalUrl) {
+          url = file.externalUrl;
+        }
+        return {
+          ...file,
+          url,
+        };
+      })
+    );
+
+    // Sort: primary first, then by version descending
+    return filesWithUrls.sort((a, b) => {
+      if (a.isPrimary && !b.isPrimary) return -1;
+      if (!a.isPrimary && b.isPrimary) return 1;
+      return b.version - a.version;
+    });
+  },
+});
+
+/**
+ * Get user's storage usage
+ */
+export const getStorageUsage = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getQueryUserId(ctx);
+    if (!userId) {
+      return null;
+    }
+
+    const user = await ctx.db.get(userId);
+    if (!user) {
+      return null;
+    }
+
+    const usedBytes = user.storageUsedBytes ?? 0;
+    const maxBytes = MAX_USER_STORAGE_BYTES;
+    const remainingBytes = maxBytes - usedBytes;
+    const percentUsed = (usedBytes / maxBytes) * 100;
+
+    return {
+      usedBytes,
+      maxBytes,
+      remainingBytes,
+      percentUsed,
+      usedFormatted: formatBytes(usedBytes),
+      maxFormatted: formatBytes(maxBytes),
+      remainingFormatted: formatBytes(remainingBytes),
+    };
+  },
+});
+
+// ============ MUTATIONS ============
+
+/**
+ * Generate an upload URL with rate limiting
+ */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getCurrentUserId(ctx);
+    const now = Date.now();
+
+    // Check rate limit
+    const rateLimit = await ctx.db
+      .query("uploadRateLimits")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (rateLimit) {
+      const windowExpired = now - rateLimit.windowStart > RATE_LIMIT_WINDOW_MS;
+
+      if (windowExpired) {
+        // Reset the window
+        await ctx.db.patch(rateLimit._id, {
+          uploadCount: 1,
+          windowStart: now,
+        });
+      } else if (rateLimit.uploadCount >= MAX_UPLOADS_PER_HOUR) {
+        const minutesRemaining = Math.ceil(
+          (rateLimit.windowStart + RATE_LIMIT_WINDOW_MS - now) / 60000
+        );
+        throw new Error(
+          `Upload rate limit exceeded. Try again in ${minutesRemaining} minutes.`
+        );
+      } else {
+        await ctx.db.patch(rateLimit._id, {
+          uploadCount: rateLimit.uploadCount + 1,
+        });
+      }
+    } else {
+      // Create new rate limit record
+      await ctx.db.insert("uploadRateLimits", {
+        userId,
+        uploadCount: 1,
+        windowStart: now,
+      });
+    }
+
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/**
+ * Save an uploaded file to a song
+ */
+export const saveSongFile = mutation({
+  args: {
+    songId: v.id("songs"),
+    storageId: v.id("_storage"),
+    fileType: v.string(),
+    variantLabel: v.optional(v.string()),
+    fileName: v.optional(v.string()),
+    fileSize: v.number(),
+    mimeType: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getCurrentUserId(ctx);
+
+    // Verify song access
+    await verifySongAccess(ctx, args.songId, userId);
+
+    // Validate file size
+    if (args.fileSize > MAX_FILE_SIZE_BYTES) {
+      // Delete the uploaded file since it exceeds limits
+      await ctx.storage.delete(args.storageId);
+      throw new Error(`File too large. Maximum size is 100MB.`);
+    }
+
+    // Check user storage quota
+    const user = await ctx.db.get(userId);
+    const currentUsage = user?.storageUsedBytes ?? 0;
+    if (currentUsage + args.fileSize > MAX_USER_STORAGE_BYTES) {
+      // Delete the uploaded file since it exceeds quota
+      await ctx.storage.delete(args.storageId);
+      const remainingMB = Math.floor(
+        (MAX_USER_STORAGE_BYTES - currentUsage) / 1024 / 1024
+      );
+      throw new Error(
+        `Storage quota exceeded. You have ${remainingMB}MB remaining.`
+      );
+    }
+
+    // Validate file type
+    if (!FILE_TYPES.includes(args.fileType as FileType)) {
+      await ctx.storage.delete(args.storageId);
+      throw new Error(`Invalid file type. Must be one of: ${FILE_TYPES.join(", ")}`);
+    }
+
+    // Update user's storage usage
+    await ctx.db.patch(userId, {
+      storageUsedBytes: currentUsage + args.fileSize,
+      updatedAt: Date.now(),
+    });
+
+    // Get existing files for versioning
+    const existingFiles = await ctx.db
+      .query("songFiles")
+      .withIndex("by_song_active", (q) =>
+        q.eq("songId", args.songId).eq("deletedAt", undefined)
+      )
+      .collect();
+
+    const maxVersion =
+      existingFiles.length > 0
+        ? Math.max(...existingFiles.map((f) => f.version))
+        : 0;
+
+    // Create file record
+    const fileId = await ctx.db.insert("songFiles", {
+      songId: args.songId,
+      storageId: args.storageId,
+      fileType: args.fileType,
+      variantLabel: args.variantLabel?.trim(),
+      fileName: args.fileName,
+      fileSize: args.fileSize,
+      mimeType: args.mimeType,
+      version: maxVersion + 1,
+      isPrimary: existingFiles.length === 0, // First file is primary
+      createdAt: Date.now(),
+    });
+
+    return fileId;
+  },
+});
+
+/**
+ * Save an external URL link to a song
+ */
+export const saveExternalUrl = mutation({
+  args: {
+    songId: v.id("songs"),
+    externalUrl: v.string(),
+    fileType: v.string(),
+    variantLabel: v.optional(v.string()),
+    fileName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getCurrentUserId(ctx);
+
+    // Verify song access
+    await verifySongAccess(ctx, args.songId, userId);
+
+    // Validate URL
+    if (!args.externalUrl.trim()) {
+      throw new Error("URL is required");
+    }
+
+    // Basic URL validation
+    try {
+      new URL(args.externalUrl);
+    } catch {
+      throw new Error("Invalid URL format");
+    }
+
+    // Validate file type
+    if (!FILE_TYPES.includes(args.fileType as FileType)) {
+      throw new Error(`Invalid file type. Must be one of: ${FILE_TYPES.join(", ")}`);
+    }
+
+    // Detect external service
+    const externalService = detectExternalService(args.externalUrl);
+
+    // Get existing files for versioning
+    const existingFiles = await ctx.db
+      .query("songFiles")
+      .withIndex("by_song_active", (q) =>
+        q.eq("songId", args.songId).eq("deletedAt", undefined)
+      )
+      .collect();
+
+    const maxVersion =
+      existingFiles.length > 0
+        ? Math.max(...existingFiles.map((f) => f.version))
+        : 0;
+
+    // Create file record
+    const fileId = await ctx.db.insert("songFiles", {
+      songId: args.songId,
+      externalUrl: args.externalUrl.trim(),
+      externalService,
+      fileType: args.fileType,
+      variantLabel: args.variantLabel?.trim(),
+      fileName: args.fileName?.trim(),
+      version: maxVersion + 1,
+      isPrimary: existingFiles.length === 0,
+      createdAt: Date.now(),
+    });
+
+    return fileId;
+  },
+});
+
+/**
+ * Set a file as primary
+ */
+export const setPrimary = mutation({
+  args: { id: v.id("songFiles") },
+  handler: async (ctx, args) => {
+    const userId = await getCurrentUserId(ctx);
+
+    const file = await ctx.db.get(args.id);
+    if (!file || file.deletedAt) {
+      throw new Error("File not found");
+    }
+
+    // Verify song access
+    await verifySongAccess(ctx, file.songId, userId);
+
+    // Unset current primary
+    const currentFiles = await ctx.db
+      .query("songFiles")
+      .withIndex("by_song_active", (q) =>
+        q.eq("songId", file.songId).eq("deletedAt", undefined)
+      )
+      .collect();
+
+    for (const f of currentFiles) {
+      if (f.isPrimary && f._id !== args.id) {
+        await ctx.db.patch(f._id, { isPrimary: false });
+      }
+    }
+
+    // Set this file as primary
+    await ctx.db.patch(args.id, { isPrimary: true });
+
+    return args.id;
+  },
+});
+
+/**
+ * Delete a file (soft delete, reclaim storage)
+ */
+export const softDelete = mutation({
+  args: { id: v.id("songFiles") },
+  handler: async (ctx, args) => {
+    const userId = await getCurrentUserId(ctx);
+
+    const file = await ctx.db.get(args.id);
+    if (!file || file.deletedAt) {
+      throw new Error("File not found");
+    }
+
+    // Verify song access
+    await verifySongAccess(ctx, file.songId, userId);
+
+    // Soft delete the file record
+    await ctx.db.patch(args.id, {
+      deletedAt: Date.now(),
+    });
+
+    // If this was an uploaded file, delete from storage and reclaim quota
+    if (file.storageId && file.fileSize) {
+      // Delete from storage
+      await ctx.storage.delete(file.storageId);
+
+      // Reclaim storage quota
+      const user = await ctx.db.get(userId);
+      const currentUsage = user?.storageUsedBytes ?? 0;
+      await ctx.db.patch(userId, {
+        storageUsedBytes: Math.max(0, currentUsage - file.fileSize),
+        updatedAt: Date.now(),
+      });
+    }
+
+    // If this was the primary file, promote another file
+    if (file.isPrimary) {
+      const remainingFiles = await ctx.db
+        .query("songFiles")
+        .withIndex("by_song_active", (q) =>
+          q.eq("songId", file.songId).eq("deletedAt", undefined)
+        )
+        .collect();
+
+      // Filter out the just-deleted file
+      const activeFiles = remainingFiles.filter((f) => f._id !== args.id);
+
+      if (activeFiles.length > 0) {
+        // Promote the most recent file
+        const newPrimary = activeFiles.sort(
+          (a, b) => b.createdAt - a.createdAt
+        )[0];
+        await ctx.db.patch(newPrimary._id, { isPrimary: true });
+      }
+    }
+
+    return args.id;
+  },
+});
+
+/**
+ * Update file metadata
+ */
+export const updateMetadata = mutation({
+  args: {
+    id: v.id("songFiles"),
+    variantLabel: v.optional(v.string()),
+    fileName: v.optional(v.string()),
+    fileType: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getCurrentUserId(ctx);
+
+    const file = await ctx.db.get(args.id);
+    if (!file || file.deletedAt) {
+      throw new Error("File not found");
+    }
+
+    // Verify song access
+    await verifySongAccess(ctx, file.songId, userId);
+
+    const updates: Partial<{
+      variantLabel: string;
+      fileName: string;
+      fileType: string;
+    }> = {};
+
+    if (args.variantLabel !== undefined) {
+      updates.variantLabel = args.variantLabel.trim();
+    }
+    if (args.fileName !== undefined) {
+      updates.fileName = args.fileName.trim();
+    }
+    if (args.fileType !== undefined) {
+      if (!FILE_TYPES.includes(args.fileType as FileType)) {
+        throw new Error(`Invalid file type. Must be one of: ${FILE_TYPES.join(", ")}`);
+      }
+      updates.fileType = args.fileType;
+    }
+
+    await ctx.db.patch(args.id, updates);
+
+    return args.id;
+  },
+});

@@ -11,7 +11,10 @@
 import type * as auth from "../auth.js";
 import type * as bandMemberships from "../bandMemberships.js";
 import type * as bands from "../bands.js";
+import type * as files from "../files.js";
 import type * as http from "../http.js";
+import type * as songSections from "../songSections.js";
+import type * as songs from "../songs.js";
 import type * as users from "../users.js";
 
 import type {
@@ -24,7 +27,10 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   bandMemberships: typeof bandMemberships;
   bands: typeof bands;
+  files: typeof files;
   http: typeof http;
+  songSections: typeof songSections;
+  songs: typeof songs;
   users: typeof users;
 }>;
 

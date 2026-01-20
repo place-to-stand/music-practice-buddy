@@ -12,7 +12,7 @@
 |-------|--------|------------|-------|
 | 1. Foundation & Auth | ✅ Complete | 6 | 6 |
 | 2. Bands & Collaboration | ✅ Complete | 4 | 4 |
-| 3. Songs & Files | ⚪ Not Started | 0 | 6 |
+| 3. Songs & Files | ✅ Complete | 6 | 6 |
 | 4. Audio Features | ⚪ Not Started | 0 | 4 |
 | 5. Tab Rendering | ⚪ Not Started | 0 | 3 |
 | 6. Gear Settings | ⚪ Not Started | 0 | 5 |
@@ -71,15 +71,34 @@
 **Dependencies:** Phase 2 (songs belong to bands)
 **Spec:** [SCHEMA.md](./SCHEMA.md), [FILES.md](./FILES.md)
 
-- [ ] Song CRUD with 4-level practice status (new → learning → solid → performance_ready)
-- [ ] File upload with size validation (100MB max)
-- [ ] Per-user storage quota tracking (2GB limit)
-- [ ] Upload rate limiting (50/hour)
-- [ ] External URL support (Dropbox, YouTube, Bandcamp, Google Drive)
-- [ ] Song sections structure
+- [x] Song CRUD with 4-level practice status (new → learning → solid → performance_ready)
+- [x] File upload with size validation (100MB max)
+- [x] Per-user storage quota tracking (2GB limit)
+- [x] Upload rate limiting (50/hour)
+- [x] External URL support (Dropbox, YouTube, Bandcamp, Google Drive)
+- [x] Song sections structure
 
 **Notes:**
-<!-- Add implementation notes here -->
+- Created `convex/songs.ts` with queries (listByBand, get) and mutations (create, update, updatePracticeStatus, softDelete)
+- Created `convex/files.ts` with queries (listBySong, getStorageUsage) and mutations (generateUploadUrl, saveSongFile, saveExternalUrl, setPrimary, softDelete, updateMetadata)
+- Created `convex/songSections.ts` with queries (listBySong, listByInstrument, get) and mutations (create, update, reorder, softDelete)
+- Rate limiting uses sliding window approach (50 uploads/hour per user)
+- Storage quota tracking updates on file upload and reclaims space on delete
+- External URL auto-detection for YouTube, YouTube Music, Dropbox, Bandcamp, Google Drive
+- YouTube metadata auto-fetch via oEmbed API (title extraction, artist parsing)
+- YouTube Music URLs auto-set file type to "audio", regular YouTube to "video"
+- File types: audio, video, chart, tab, gp, stem, other
+- useFileUpload hook with XHR progress tracking
+- UI components: SongCard, SongList, CreateSongDialog, PracticeStatusBadge, FileUploadDropzone, ExternalUrlDialog, SongFilesSection
+- SongCard displays badges for all file types: Audio, Video, Chart, Tab (with fallback to "X files" for unmatched types)
+- FileUploadDropzone supports drag overlay mode (covers parent card, appears only on drag)
+- Storage quota display moved to user dropdown in DashboardNav (global, not per-song)
+- External service labels properly formatted for display (e.g., "google_drive" → "Google Drive")
+- File editing: inline edit for display name and variant, delete confirmation dialog
+- Download button for uploaded files (not external URLs)
+- Pages: /bands/[bandId]/songs (song list with status tabs), /bands/[bandId]/songs/[songId] (song detail with files)
+- BandCard now links to songs page instead of members page
+- shadcn/ui alert-dialog added for delete confirmations
 
 ---
 
@@ -213,13 +232,34 @@
 - [ ] Leave a band
 
 ### Songs & Files
-- [ ] Create song with all fields
+- [ ] Create song with title only (minimal)
+- [ ] Create song with all fields (key, mode, tempo, time signature, notes)
 - [ ] Update practice status (new → learning → solid → performance_ready)
-- [ ] Upload audio file (verify waveform generates)
-- [ ] Upload Guitar Pro file (verify tab renders)
-- [ ] Add external URL (Dropbox, YouTube)
-- [ ] Delete song (soft delete)
-- [ ] Verify storage quota displays correctly
+- [ ] Upload audio file via "Add File" button
+- [ ] Upload file via drag-and-drop (verify overlay appears on drag)
+- [ ] Verify upload progress bar displays
+- [ ] Upload Guitar Pro file
+- [ ] Add YouTube link (verify metadata auto-populates display name)
+- [ ] Add YouTube Music link (verify file type auto-sets to "audio")
+- [ ] Add regular YouTube link (verify file type auto-sets to "video")
+- [ ] Add Dropbox/Google Drive link
+- [ ] Edit file display name and variant label
+- [ ] Download uploaded file (verify download button works)
+- [ ] Delete file (verify confirmation dialog)
+- [ ] Delete song (soft delete, verify files also deleted)
+- [ ] Verify storage quota displays in user dropdown menu
+- [ ] Verify song card badges show correct file types (Audio, Video, Chart, Tab)
+- [ ] Filter songs by practice status tabs (All, New, Learning, Solid, Ready)
+
+### Audio Features (Phase 4)
+- [ ] Upload audio file triggers waveform computation
+- [ ] Waveform displays on song detail page
+- [ ] Audio playback with wavesurfer.js
+- [ ] Tempo/key detection populates song defaults
+
+### Tab Rendering (Phase 5)
+- [ ] Guitar Pro file renders with AlphaTab
+- [ ] MIDI playback from tab works
 
 ### Gear Settings
 - [ ] Add gear piece (pedal/synth/amp)
@@ -314,3 +354,58 @@
 - Use `getAuthUserId(ctx)` from `@convex-dev/auth/server` for getting authenticated user ID
 - Band membership uses soft delete via `leftAt` timestamp
 - Invite codes are 6 chars from safe set: ABCDEFGHJKMNPQRSTUVWXYZ23456789
+
+### Session: January 20, 2026 (Phase 3)
+**What was done:**
+- Implemented Phase 3: Songs & Files
+- Created `convex/songs.ts` with full CRUD operations and practice status management
+- Created `convex/files.ts` with file upload, storage quotas, and rate limiting
+- Created `convex/songSections.ts` for song section management (gear settings will attach here)
+- Built `useFileUpload` hook with XHR progress tracking
+- Created song UI components: SongCard, SongList, CreateSongDialog, PracticeStatusBadge
+- Created file UI components: FileUploadDropzone, ExternalUrlDialog, SongFilesSection
+- Created songs list page with practice status filter tabs
+- Created song detail page with inline editing and file management
+- Updated BandCard to navigate to songs page instead of members page
+- Added shadcn/ui alert-dialog for delete confirmations
+- All builds passing (type-check, lint, build)
+
+**Next steps:**
+- Begin Phase 4: Audio Features
+- Implement waveform pre-computation on audio upload
+- Add wavesurfer.js for audio playback
+- Consider Essentia.js for tempo/key detection
+
+**Context to remember:**
+- Files can be uploaded (storageId) or external URLs (externalUrl + externalService)
+- Rate limiting uses uploadRateLimits table with 1-hour sliding window
+- Storage quota is tracked in users.storageUsedBytes, reclaimed on file delete
+- Song sections are ready for Phase 6 (Gear Settings) to attach gearSettings
+- Practice status enum: new → learning → solid → performance_ready
+
+### Session: January 20, 2026 (Phase 3 Polish)
+**What was done:**
+- Added YouTube metadata scraping to ExternalUrlDialog via oEmbed API
+- YouTube URLs auto-detect and populate display name on paste
+- YouTube Music vs regular YouTube detection (sets file type to audio vs video)
+- Created `src/lib/youtube.ts` with URL extraction and metadata fetching utilities
+- Moved storage quota display from song files section to user dropdown menu in DashboardNav
+- Added "Add File" button alongside "Add Link" in SongFilesSection
+- Implemented drag overlay for file upload (hidden dropzone appears on drag, covers full card)
+- Fixed external service label formatting (google_drive → "Google Drive")
+- Added file type badges to SongCard: Audio, Video, Chart, Tab (computed server-side)
+- Added file download button for uploaded files
+- Added inline file editing (display name, variant label) with delete confirmation
+- Phase 3 fully complete and tested
+
+**Next steps:**
+- Begin Phase 4: Audio Features
+- Implement waveform pre-computation on audio upload
+- Add wavesurfer.js for audio playback
+
+**Context to remember:**
+- YouTube metadata uses oEmbed endpoint (no API key required): `https://www.youtube.com/oembed?url=...`
+- `isYouTubeUrl()` and `fetchYouTubeMetadata()` exported from `src/lib/youtube.ts`
+- Song card file type flags computed in `convex/songs.ts` listByBand query (hasAudio, hasVideo, hasChart, hasTab)
+- FileUploadDropzone has `asOverlay` prop for the drag-to-reveal behavior
+- Storage quota query: `api.files.getStorageUsage` (used in DashboardNav)

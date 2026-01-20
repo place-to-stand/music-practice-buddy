@@ -31,7 +31,7 @@ function getInstrumentLabel(id: string): string {
 
 export function BandCard({ band }: BandCardProps) {
   return (
-    <Link href={`/bands/${band._id}/members`}>
+    <Link href={`/bands/${band._id}/songs`}>
       <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
         <CardHeader className="pb-2">
           <CardTitle className="text-lg">{band.name}</CardTitle>
