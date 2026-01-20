@@ -292,3 +292,25 @@
 - TypeScript errors will resolve after running `npx convex dev`
 - The generated `_generated/` folder will be created by Convex
 - Google OAuth callback URL: `http://localhost:3000/api/auth/callback/google`
+
+### Session: January 20, 2026
+**What was done:**
+- Implemented Phase 2: Bands & Collaboration
+- Created Convex functions for bands and memberships (queries + mutations)
+- Built UI components for band management (dialogs, cards, lists)
+- Added 6-character shareable invite codes with safe character set
+- Implemented band member list with instrument picker
+- Added leave/delete band functionality with proper business rules
+- Fixed auth user lookup to use `getAuthUserId` from Convex Auth
+- Added `tokenIdentifier` field to users schema (for future use)
+- All manual tests passing: create band, copy invite code, join band, view members, update instruments, leave band, delete band
+
+**Next steps:**
+- Begin Phase 3: Songs & Files
+- Implement song CRUD with practice status
+- Add file upload with size validation and storage quotas
+
+**Context to remember:**
+- Use `getAuthUserId(ctx)` from `@convex-dev/auth/server` for getting authenticated user ID
+- Band membership uses soft delete via `leftAt` timestamp
+- Invite codes are 6 chars from safe set: ABCDEFGHJKMNPQRSTUVWXYZ23456789
