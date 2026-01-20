@@ -133,6 +133,7 @@ export default defineSchema({
     detectedTempo: v.optional(v.number()),
     detectedKey: v.optional(v.string()),
     analysisConfidence: v.optional(v.number()),
+    durationSeconds: v.optional(v.number()), // Detected from audio analysis
     // Waveform data (pre-computed)
     waveformPeaks: v.optional(v.array(v.number())),
     createdAt: v.number(),
@@ -152,6 +153,21 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
     deletedAt: v.optional(v.number()),
   }).index("by_song", ["songId"]),
+
+  // ============ USER SONG PROGRESS ============
+  // Per-user practice status and personal notes for songs
+  // Separates personal progress from shared band song data
+  userSongProgress: defineTable({
+    userId: v.id("users"),
+    songId: v.id("songs"),
+    practiceStatus: v.string(), // 'new' | 'learning' | 'solid' | 'performance_ready'
+    personalNotes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_song", ["songId"])
+    .index("by_user_song", ["userId", "songId"]),
 
   // ============ RECORDING PROJECTS ============
   recordingProjects: defineTable({

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { Id, Doc } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 // ============ CONSTANTS ============
@@ -56,7 +56,7 @@ async function verifySongAccess(
   ctx: QueryCtx | MutationCtx,
   songId: Id<"songs">,
   userId: Id<"users">
-): Promise<{ song: NonNullable<Awaited<ReturnType<typeof ctx.db.get>>>; bandId: Id<"bands"> }> {
+): Promise<{ song: Doc<"songs">; bandId: Id<"bands"> }> {
   const song = await ctx.db.get(songId);
   if (!song || song.deletedAt) {
     throw new Error("Song not found");
@@ -302,6 +302,9 @@ export const saveSongFile = mutation({
         ? Math.max(...existingFiles.map((f) => f.version))
         : 0;
 
+    // Check if this will be the primary file (first file for this song)
+    const isPrimary = existingFiles.length === 0;
+
     // Create file record
     const fileId = await ctx.db.insert("songFiles", {
       songId: args.songId,
@@ -312,11 +315,11 @@ export const saveSongFile = mutation({
       fileSize: args.fileSize,
       mimeType: args.mimeType,
       version: maxVersion + 1,
-      isPrimary: existingFiles.length === 0, // First file is primary
+      isPrimary,
       createdAt: Date.now(),
     });
 
-    return fileId;
+    return { fileId, isPrimary };
   },
 });
 
@@ -389,6 +392,8 @@ export const saveExternalUrl = mutation({
 
 /**
  * Set a file as primary
+ * Returns metadata diff if the file is audio with analysis data
+ * Client should show confirmation dialog if there are conflicts
  */
 export const setPrimary = mutation({
   args: { id: v.id("songFiles") },
@@ -401,7 +406,7 @@ export const setPrimary = mutation({
     }
 
     // Verify song access
-    await verifySongAccess(ctx, file.songId, userId);
+    const { song } = await verifySongAccess(ctx, file.songId, userId);
 
     // Unset current primary
     const currentFiles = await ctx.db
@@ -420,12 +425,54 @@ export const setPrimary = mutation({
     // Set this file as primary
     await ctx.db.patch(args.id, { isPrimary: true });
 
-    return args.id;
+    // If this is an audio file with analysis data, return diff for client confirmation
+    if (file.fileType === "audio" && (file.detectedTempo !== undefined || file.detectedKey !== undefined || file.durationSeconds !== undefined)) {
+      const hasConflict =
+        (file.durationSeconds !== undefined && song.durationSeconds !== undefined && song.durationSeconds !== Math.round(file.durationSeconds)) ||
+        (file.detectedTempo !== undefined && song.tempo !== undefined && song.tempo !== file.detectedTempo) ||
+        (file.detectedKey !== undefined && song.key !== undefined && song.key !== file.detectedKey);
+
+      const songHasNoMetadata =
+        song.durationSeconds === undefined &&
+        song.tempo === undefined &&
+        song.key === undefined;
+
+      return {
+        fileId: args.id,
+        songId: song._id as Id<"songs">,
+        hasConflict,
+        songHasNoMetadata,
+        detected: {
+          durationSeconds: file.durationSeconds ? Math.round(file.durationSeconds) : undefined,
+          tempo: file.detectedTempo,
+          key: file.detectedKey,
+        },
+        current: {
+          durationSeconds: song.durationSeconds,
+          tempo: song.tempo,
+          key: song.key,
+        },
+      };
+    }
+
+    return {
+      fileId: args.id,
+      songId: song._id as Id<"songs">,
+      hasConflict: false,
+      songHasNoMetadata: false,
+      detected: {},
+      current: {
+        durationSeconds: song.durationSeconds,
+        tempo: song.tempo,
+        key: song.key,
+      },
+    };
   },
 });
 
 /**
  * Delete a file (soft delete, reclaim storage)
+ * If archiving the primary file, promotes the next file and returns metadata for confirmation
  */
 export const softDelete = mutation({
   args: { id: v.id("songFiles") },
@@ -438,29 +485,21 @@ export const softDelete = mutation({
     }
 
     // Verify song access
-    await verifySongAccess(ctx, file.songId, userId);
+    const { song } = await verifySongAccess(ctx, file.songId, userId);
 
-    // Soft delete the file record
+    const wasPrimary = file.isPrimary;
+
+    // Soft delete the file record and clear primary status
     await ctx.db.patch(args.id, {
       deletedAt: Date.now(),
+      isPrimary: false,
     });
 
-    // If this was an uploaded file, delete from storage and reclaim quota
-    if (file.storageId && file.fileSize) {
-      // Delete from storage
-      await ctx.storage.delete(file.storageId);
+    // Note: Storage is NOT deleted here - it's deleted in permanentDelete
+    // This allows users to restore archived files
 
-      // Reclaim storage quota
-      const user = await ctx.db.get(userId);
-      const currentUsage = user?.storageUsedBytes ?? 0;
-      await ctx.db.patch(userId, {
-        storageUsedBytes: Math.max(0, currentUsage - file.fileSize),
-        updatedAt: Date.now(),
-      });
-    }
-
-    // If this was the primary file, promote another file
-    if (file.isPrimary) {
+    // If this was the primary file, promote the next file
+    if (wasPrimary) {
       const remainingFiles = await ctx.db
         .query("songFiles")
         .withIndex("by_song_active", (q) =>
@@ -468,19 +507,78 @@ export const softDelete = mutation({
         )
         .collect();
 
-      // Filter out the just-deleted file
-      const activeFiles = remainingFiles.filter((f) => f._id !== args.id);
-
-      if (activeFiles.length > 0) {
+      if (remainingFiles.length > 0) {
         // Promote the most recent file
-        const newPrimary = activeFiles.sort(
+        const newPrimary = remainingFiles.sort(
           (a, b) => b.createdAt - a.createdAt
         )[0];
         await ctx.db.patch(newPrimary._id, { isPrimary: true });
+
+        // Return metadata info for the new primary (like setPrimary does)
+        if (newPrimary.fileType === "audio" && (
+          newPrimary.detectedTempo !== undefined ||
+          newPrimary.detectedKey !== undefined ||
+          newPrimary.durationSeconds !== undefined
+        )) {
+          const hasConflict =
+            (newPrimary.durationSeconds !== undefined && song.durationSeconds !== undefined && song.durationSeconds !== Math.round(newPrimary.durationSeconds)) ||
+            (newPrimary.detectedTempo !== undefined && song.tempo !== undefined && song.tempo !== newPrimary.detectedTempo) ||
+            (newPrimary.detectedKey !== undefined && song.key !== undefined && song.key !== newPrimary.detectedKey);
+
+          const songHasNoMetadata =
+            song.durationSeconds === undefined &&
+            song.tempo === undefined &&
+            song.key === undefined;
+
+          return {
+            archivedFileId: args.id,
+            newPrimaryFileId: newPrimary._id,
+            songId: song._id as Id<"songs">,
+            hasConflict,
+            songHasNoMetadata,
+            detected: {
+              durationSeconds: newPrimary.durationSeconds ? Math.round(newPrimary.durationSeconds) : undefined,
+              tempo: newPrimary.detectedTempo,
+              key: newPrimary.detectedKey,
+            },
+            current: {
+              durationSeconds: song.durationSeconds,
+              tempo: song.tempo,
+              key: song.key,
+            },
+          };
+        }
+
+        return {
+          archivedFileId: args.id,
+          newPrimaryFileId: newPrimary._id,
+          songId: song._id as Id<"songs">,
+          hasConflict: false,
+          songHasNoMetadata: false,
+          detected: {},
+          current: {
+            durationSeconds: song.durationSeconds,
+            tempo: song.tempo,
+            key: song.key,
+          },
+        };
       }
     }
 
-    return args.id;
+    // No primary promotion needed
+    return {
+      archivedFileId: args.id,
+      newPrimaryFileId: null,
+      songId: song._id as Id<"songs">,
+      hasConflict: false,
+      songHasNoMetadata: false,
+      detected: {},
+      current: {
+        durationSeconds: song.durationSeconds,
+        tempo: song.tempo,
+        key: song.key,
+      },
+    };
   },
 });
 
@@ -525,6 +623,184 @@ export const updateMetadata = mutation({
     }
 
     await ctx.db.patch(args.id, updates);
+
+    return args.id;
+  },
+});
+
+/**
+ * Get archived (soft-deleted) files for a song
+ */
+export const listArchivedBySong = query({
+  args: { songId: v.id("songs") },
+  handler: async (ctx, args) => {
+    const userId = await getQueryUserId(ctx);
+    if (!userId) {
+      return [];
+    }
+
+    // Verify access via song
+    try {
+      await verifySongAccess(ctx, args.songId, userId);
+    } catch {
+      return [];
+    }
+
+    // Get all files for this song and filter to deleted ones
+    const allFiles = await ctx.db
+      .query("songFiles")
+      .withIndex("by_song", (q) => q.eq("songId", args.songId))
+      .collect();
+
+    const deletedFiles = allFiles.filter((f) => f.deletedAt !== undefined);
+
+    // Get URLs for both uploaded and external files
+    // Storage is kept intact during soft delete, so we can get storage URLs
+    const filesWithUrls = await Promise.all(
+      deletedFiles.map(async (file) => {
+        let url: string | null = null;
+        if (file.storageId) {
+          url = await ctx.storage.getUrl(file.storageId);
+        } else if (file.externalUrl) {
+          url = file.externalUrl;
+        }
+        return {
+          ...file,
+          url,
+        };
+      })
+    );
+
+    // Sort by deletion date, most recent first
+    return filesWithUrls.sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+  },
+});
+
+/**
+ * Restore an archived file
+ * If it becomes the only file, it's set as primary and returns metadata for confirmation
+ */
+export const restore = mutation({
+  args: { id: v.id("songFiles") },
+  handler: async (ctx, args) => {
+    const userId = await getCurrentUserId(ctx);
+
+    const file = await ctx.db.get(args.id);
+    if (!file) {
+      throw new Error("File not found");
+    }
+    if (!file.deletedAt) {
+      throw new Error("File is not archived");
+    }
+
+    // Verify song access
+    const { song } = await verifySongAccess(ctx, file.songId, userId);
+
+    // Check if there are any active files
+    const activeFiles = await ctx.db
+      .query("songFiles")
+      .withIndex("by_song_active", (q) =>
+        q.eq("songId", file.songId).eq("deletedAt", undefined)
+      )
+      .collect();
+
+    const willBePrimary = activeFiles.length === 0;
+
+    // Restore the file
+    // If no active files exist, the restored file becomes primary
+    await ctx.db.patch(args.id, {
+      deletedAt: undefined,
+      isPrimary: willBePrimary,
+    });
+
+    // If this file becomes primary and is audio with metadata, return info for dialog
+    if (willBePrimary && file.fileType === "audio" && (
+      file.detectedTempo !== undefined ||
+      file.detectedKey !== undefined ||
+      file.durationSeconds !== undefined
+    )) {
+      const hasConflict =
+        (file.durationSeconds !== undefined && song.durationSeconds !== undefined && song.durationSeconds !== Math.round(file.durationSeconds)) ||
+        (file.detectedTempo !== undefined && song.tempo !== undefined && song.tempo !== file.detectedTempo) ||
+        (file.detectedKey !== undefined && song.key !== undefined && song.key !== file.detectedKey);
+
+      const songHasNoMetadata =
+        song.durationSeconds === undefined &&
+        song.tempo === undefined &&
+        song.key === undefined;
+
+      return {
+        restoredFileId: args.id,
+        becamePrimary: true,
+        songId: song._id as Id<"songs">,
+        hasConflict,
+        songHasNoMetadata,
+        detected: {
+          durationSeconds: file.durationSeconds ? Math.round(file.durationSeconds) : undefined,
+          tempo: file.detectedTempo,
+          key: file.detectedKey,
+        },
+        current: {
+          durationSeconds: song.durationSeconds,
+          tempo: song.tempo,
+          key: song.key,
+        },
+      };
+    }
+
+    return {
+      restoredFileId: args.id,
+      becamePrimary: willBePrimary,
+      songId: song._id as Id<"songs">,
+      hasConflict: false,
+      songHasNoMetadata: false,
+      detected: {},
+      current: {
+        durationSeconds: song.durationSeconds,
+        tempo: song.tempo,
+        key: song.key,
+      },
+    };
+  },
+});
+
+/**
+ * Permanently delete an archived file (hard delete)
+ */
+export const permanentDelete = mutation({
+  args: { id: v.id("songFiles") },
+  handler: async (ctx, args) => {
+    const userId = await getCurrentUserId(ctx);
+
+    const file = await ctx.db.get(args.id);
+    if (!file) {
+      throw new Error("File not found");
+    }
+    if (!file.deletedAt) {
+      throw new Error("File must be archived before permanent deletion");
+    }
+
+    // Verify song access
+    await verifySongAccess(ctx, file.songId, userId);
+
+    // If this was an uploaded file, delete from storage and reclaim quota
+    if (file.storageId) {
+      // Delete from storage
+      await ctx.storage.delete(file.storageId);
+
+      // Reclaim storage quota
+      if (file.fileSize) {
+        const user = await ctx.db.get(userId);
+        const currentUsage = user?.storageUsedBytes ?? 0;
+        await ctx.db.patch(userId, {
+          storageUsedBytes: Math.max(0, currentUsage - file.fileSize),
+          updatedAt: Date.now(),
+        });
+      }
+    }
+
+    // Permanently delete the record
+    await ctx.db.delete(args.id);
 
     return args.id;
   },

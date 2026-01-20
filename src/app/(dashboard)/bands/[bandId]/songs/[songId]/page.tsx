@@ -26,9 +26,10 @@ import {
 import { Separator } from "@/components/ui/separator";
 import {
   PracticeStatusBadge,
-  PRACTICE_STATUS_OPTIONS,
   SongFilesSection,
   PracticeStatus,
+  PersonalNotesSection,
+  PersonalPracticeStatus,
 } from "@/components/songs";
 import { ArrowLeft, Pencil, Check, X, Trash2, Music } from "lucide-react";
 import { toast } from "sonner";
@@ -64,9 +65,9 @@ export default function SongDetailPage() {
   const songId = params.songId as Id<"songs">;
 
   const [isEditing, setIsEditing] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   // Edit form state
   const [editTitle, setEditTitle] = useState("");
@@ -77,11 +78,14 @@ export default function SongDetailPage() {
   const [editNotes, setEditNotes] = useState("");
 
   const song = useQuery(api.songs.get, { id: songId });
+  const userProgress = useQuery(api.userSongProgress.getForSong, { songId });
   const updateSong = useMutation(api.songs.update);
-  const updatePracticeStatus = useMutation(api.songs.updatePracticeStatus);
-  const deleteSong = useMutation(api.songs.softDelete);
+  const archiveSong = useMutation(api.songs.softDelete);
 
   const isLoading = song === undefined;
+
+  // User's personal practice status (defaults to "new")
+  const userPracticeStatus = userProgress?.practiceStatus ?? "new";
 
   // Song not found or no access
   if (song === null) {
@@ -155,27 +159,16 @@ export default function SongDetailPage() {
     }
   };
 
-  const handleStatusChange = async (status: string) => {
+  const handleArchive = async () => {
+    setIsArchiving(true);
     try {
-      await updatePracticeStatus({ id: songId, practiceStatus: status });
-      toast.success("Practice status updated");
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to update status"
-      );
-    }
-  };
-
-  const handleDelete = async () => {
-    setIsDeleting(true);
-    try {
-      await deleteSong({ id: songId });
-      toast.success("Song deleted");
+      await archiveSong({ id: songId });
+      toast.success("Song archived");
       router.push(`/bands/${bandId}/songs`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete song");
+      toast.error(err instanceof Error ? err.message : "Failed to archive song");
     } finally {
-      setIsDeleting(false);
+      setIsArchiving(false);
     }
   };
 
@@ -202,7 +195,7 @@ export default function SongDetailPage() {
               </h1>
               {!isLoading && song && (
                 <PracticeStatusBadge
-                  status={song.practiceStatus as PracticeStatus}
+                  status={userPracticeStatus as PracticeStatus}
                 />
               )}
             </div>
@@ -225,10 +218,10 @@ export default function SongDetailPage() {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => setShowDeleteDialog(true)}
+                  onClick={() => setShowArchiveDialog(true)}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
+                  Archive
                 </Button>
               </>
             ) : (
@@ -364,13 +357,14 @@ export default function SongDetailPage() {
 
                   {/* Notes */}
                   <div className="space-y-2">
-                    <Label htmlFor="edit-notes">Notes</Label>
+                    <Label htmlFor="edit-notes">Band Notes</Label>
                     <Textarea
                       id="edit-notes"
                       value={editNotes}
                       onChange={(e) => setEditNotes(e.target.value)}
                       disabled={isSaving}
                       rows={4}
+                      placeholder="Shared notes visible to all band members..."
                     />
                   </div>
                 </div>
@@ -414,7 +408,7 @@ export default function SongDetailPage() {
                       <Separator />
                       <div>
                         <p className="text-sm text-muted-foreground mb-1">
-                          Notes
+                          Band Notes
                         </p>
                         <p className="whitespace-pre-wrap">{song.notes}</p>
                       </div>
@@ -431,33 +425,11 @@ export default function SongDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Practice Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Practice Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="h-10 bg-muted rounded animate-pulse" />
-              ) : (
-                <Select
-                  value={song?.practiceStatus}
-                  onValueChange={handleStatusChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PRACTICE_STATUS_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </CardContent>
-          </Card>
+          {/* Personal Practice Status */}
+          {!isLoading && <PersonalPracticeStatus songId={songId} />}
+
+          {/* Personal Notes */}
+          {!isLoading && <PersonalNotesSection songId={songId} />}
 
           {/* Quick Info */}
           <Card>
@@ -491,24 +463,25 @@ export default function SongDetailPage() {
         </div>
       </div>
 
-      {/* Delete confirmation dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      {/* Archive confirmation dialog */}
+      <AlertDialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Song</AlertDialogTitle>
+            <AlertDialogTitle>Archive Song</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{song?.title}&quot;? This
-              will also delete all attached files. This action cannot be undone.
+              Are you sure you want to archive &quot;{song?.title}&quot;? The
+              song and its files will be moved to the archive and can be
+              restored later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isArchiving}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
-              disabled={isDeleting}
+              onClick={handleArchive}
+              disabled={isArchiving}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting ? "Deleting..." : "Delete"}
+              {isArchiving ? "Archiving..." : "Archive"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

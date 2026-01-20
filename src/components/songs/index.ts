@@ -7,3 +7,5 @@ export { FileUploadDropzone, FileTypeIcon } from "./FileUploadDropzone";
 export { ExternalUrlDialog } from "./ExternalUrlDialog";
 export { EditFileDialog } from "./EditFileDialog";
 export { SongFilesSection } from "./SongFilesSection";
+export { PersonalNotesSection } from "./PersonalNotesSection";
+export { PersonalPracticeStatus } from "./PersonalPracticeStatus";

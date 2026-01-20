@@ -19,11 +19,18 @@ interface Song {
   hasTab: boolean;
 }
 
-interface SongListProps {
-  songs: Song[];
+interface UserProgress {
+  practiceStatus: string;
+  personalNotes?: string;
 }
 
-export function SongList({ songs }: SongListProps) {
+interface SongListProps {
+  songs: Song[];
+  /** Map of songId -> user's progress for that song */
+  userProgress?: Record<string, UserProgress>;
+}
+
+export function SongList({ songs, userProgress }: SongListProps) {
   if (songs.length === 0) {
     return null;
   }
@@ -31,7 +38,11 @@ export function SongList({ songs }: SongListProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {songs.map((song) => (
-        <SongCard key={song._id} song={song} />
+        <SongCard
+          key={song._id}
+          song={song}
+          userPracticeStatus={userProgress?.[song._id]?.practiceStatus}
+        />
       ))}
     </div>
   );

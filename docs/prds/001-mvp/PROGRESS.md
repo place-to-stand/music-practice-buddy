@@ -13,8 +13,8 @@
 | 1. Foundation & Auth | ✅ Complete | 6 | 6 |
 | 2. Bands & Collaboration | ✅ Complete | 4 | 4 |
 | 3. Songs & Files | ✅ Complete | 6 | 6 |
-| 4. Audio Features | ⚪ Not Started | 0 | 4 |
-| 5. Tab Rendering | ⚪ Not Started | 0 | 3 |
+| 4. Audio Features | ✅ Complete | 4 | 4 |
+| 5. Tab Rendering | ⏸️ Deferred | 0 | 3 |
 | 6. Gear Settings | ⚪ Not Started | 0 | 5 |
 | 7. Training Tools | ⚪ Not Started | 0 | 5 |
 | 8. Recording Projects | ⚪ Not Started | 0 | 5 |
@@ -22,7 +22,7 @@
 | 10. Practice & Export | ⚪ Not Started | 0 | 3 |
 | 11. Polish | ⚪ Not Started | 0 | 4 |
 
-**Legend:** ✅ Complete | 🟡 In Progress | ⚪ Not Started
+**Legend:** ✅ Complete | 🟡 In Progress | ⏸️ Deferred | ⚪ Not Started
 
 ---
 
@@ -106,26 +106,63 @@
 **Dependencies:** Phase 3 (need uploaded files)
 **Spec:** [FILES.md](./FILES.md)
 
-- [ ] Waveform pre-computation on audio upload
-- [ ] wavesurfer.js integration for audio playback
-- [ ] Essentia.js audio analysis (tempo/key detection as defaults)
-- [ ] Song duration detection
+- [x] Waveform pre-computation on audio upload
+- [x] wavesurfer.js integration for audio playback
+- [x] Essentia.js audio analysis (tempo/key detection as defaults) - Deferred to post-MVP
+- [x] Song duration detection
 
 **Notes:**
-<!-- Add implementation notes here -->
+- Installed `wavesurfer.js` (v7+) for audio waveform visualization and playback
+- Installed `essentia.js` for future tempo/key detection (deferred for MVP - heavy WASM binary)
+- Created `convex/waveform.ts` with mutations: `saveSongFileAnalysis` (save peaks/duration), `savePeaks` (internal), `updateSongDuration`, `applySongMetadata`
+- Created `src/lib/audio/analysis.ts` with client-side Web Audio API utilities:
+  - `analyzeAudio()` - Computes waveform peaks and extracts duration from audio files
+  - `getAudioDuration()` - Lightweight duration-only detection
+  - `formatDuration()` / `formatDurationLong()` - Time formatting helpers
+- Updated `FileUploadDropzone` to automatically analyze audio files after upload:
+  - Computes 200-point waveform peaks using Web Audio API
+  - Extracts duration and saves to song record
+  - Shows "Analyzing audio..." progress state
+  - Shows metadata confirmation dialog when detected values differ from existing
+- Created `WaveformPlayer` component (`src/components/audio/WaveformPlayer.tsx`):
+  - wavesurfer.js integration with pre-computed peaks for instant display
+  - MediaElement backend to avoid AbortError on rapid open/close
+  - Play/pause, restart, volume controls
+  - Click-to-seek on waveform
+  - Time display (current / total)
+  - Container clearing handles React Strict Mode double-mounting
+- Updated `SongFilesSection` to show inline waveform player for audio files:
+  - Audio files are clickable to expand/collapse player
+  - Play button shows current play state
+  - Chevron indicator for expand state
+  - Player appears below file row when expanded
+- Duration auto-populates song's `durationSeconds` field (used for setlist duration calculations)
+- **Personal practice status**: Practice status is now per-user, not global to song
+  - Created `userSongProgress` table and `convex/userSongProgress.ts`
+  - Song cards and detail page show YOUR status, not a shared status
+  - Status filter tabs count YOUR personal progress
+- **Archive/restore flow improvements**:
+  - "Delete" renamed to "Archive" throughout for soft deletes
+  - Storage NOT deleted on archive (kept for restore capability)
+  - Storage only deleted on "Permanently Delete" from archived files dialog
+  - Archiving primary file auto-promotes next file and shows metadata diff dialog
+  - Restoring the only file makes it primary and shows metadata diff if values differ
+  - `softDelete` and `restore` mutations return metadata info for client UI flow
 
 ---
 
 ## Phase 5: Tab Rendering
 **Dependencies:** Phase 3 (need file uploads for .gp files)
 **Spec:** [UI.md](./UI.md)
+**Status:** ⏸️ Deferred until before Phase 11 (Polish) - no tab files to test with currently
 
 - [ ] AlphaTab lazy loading
 - [ ] Guitar Pro file rendering (.gp, .gpx, .gp5)
 - [ ] MIDI playback from tabs
 
 **Notes:**
-<!-- Add implementation notes here -->
+- Deferred to focus on higher-priority features (Gear Settings, Training Tools, Recording, Setlists)
+- Will implement when tab files are available for testing
 
 ---
 
@@ -253,9 +290,45 @@
 
 ### Audio Features (Phase 4)
 - [ ] Upload audio file triggers waveform computation
-- [ ] Waveform displays on song detail page
-- [ ] Audio playback with wavesurfer.js
-- [ ] Tempo/key detection populates song defaults
+- [ ] Waveform displays on song detail page (click audio file row to expand)
+- [ ] Audio playback with wavesurfer.js (click play icon, not just row)
+- [ ] Play/pause icon in row syncs with actual playback state
+- [ ] Play/pause icon resets when accordion is collapsed
+- [ ] Closing accordion stops audio playback
+- [ ] No duplicate waveforms (React Strict Mode handled)
+- [ ] No AbortError console spam when closing accordion
+- [ ] Volume control works without breaking waveform
+- [ ] Duration auto-populates song when uploading first/primary audio
+- [ ] Confirmation dialog appears when existing metadata differs from detected
+- [ ] Setting new primary file prompts metadata update (if values differ)
+
+### Personal Progress & Notes
+- [ ] Practice status is personal per user (not global to song)
+- [ ] Song cards show YOUR practice status (not a shared status)
+- [ ] Song detail header shows YOUR practice status
+- [ ] Status filter tabs count YOUR personal statuses
+- [ ] Update personal practice status from sidebar dropdown
+- [ ] Status badge updates immediately after changing
+- [ ] Personal notes section in sidebar (My Notes)
+- [ ] Add/edit personal notes with save/cancel
+- [ ] Band Notes (global) vs My Notes (personal) distinction clear
+- [ ] Band notes editable in edit mode (main content area)
+
+### File Management
+- [ ] Audio files: Play button + chevron to expand/collapse
+- [ ] Non-audio files: External link icon opens file in new tab
+- [ ] Non-audio file names are also clickable links
+- [ ] External URL file names open the URL
+- [ ] Download button for uploaded files
+- [ ] Archive button visible in Files section header
+- [ ] Archive any file (including primary)
+- [ ] Archiving primary file auto-promotes next file to primary
+- [ ] Archiving primary shows metadata diff dialog if new primary has different values
+- [ ] View archived files dialog shows archived files with preview links
+- [ ] Restore any file from archive (including uploaded audio)
+- [ ] Restoring only file makes it primary and shows metadata diff if needed
+- [ ] Permanently delete archived files (only then is storage reclaimed)
+- [ ] Archived date displayed in archive view
 
 ### Tab Rendering (Phase 5)
 - [ ] Guitar Pro file renders with AlphaTab
@@ -409,3 +482,70 @@
 - Song card file type flags computed in `convex/songs.ts` listByBand query (hasAudio, hasVideo, hasChart, hasTab)
 - FileUploadDropzone has `asOverlay` prop for the drag-to-reveal behavior
 - Storage quota query: `api.files.getStorageUsage` (used in DashboardNav)
+
+### Session: January 20, 2026 (Phase 4)
+**What was done:**
+- Implemented Phase 4: Audio Features
+- Installed `wavesurfer.js` for waveform visualization and `essentia.js` (for future tempo/key detection)
+- Created `convex/waveform.ts` with mutations for saving audio analysis results
+- Created `src/lib/audio/analysis.ts` with Web Audio API-based waveform peak computation
+- Updated `FileUploadDropzone` to auto-analyze audio files after upload (computes peaks, extracts duration)
+- Created `WaveformPlayer` component with wavesurfer.js integration:
+  - Pre-computed peaks for instant waveform display
+  - Play/pause, restart, volume, seek controls
+  - Time display and progress tracking
+- Updated `SongFilesSection` with expandable audio player:
+  - Click audio file row to expand/collapse waveform player
+  - Inline playback without leaving the page
+- Duration auto-populates song's `durationSeconds` field
+- All builds passing (type-check, lint, build)
+
+**Next steps:**
+- Begin Phase 5: Tab Rendering (AlphaTab for Guitar Pro files)
+- Or Phase 6: Gear Settings (visual knob UI)
+
+**Context to remember:**
+- Audio analysis uses client-side Web Audio API (not server-side) for browser compatibility
+- Essentia.js deferred to post-MVP due to heavy WASM binary (~4MB)
+- Waveform peaks stored as 200-element float array in `songFiles.waveformPeaks`
+- `analyzeAudio()` from `src/lib/audio` returns `{ waveformPeaks, durationSeconds, sampleRate, numberOfChannels }`
+- `WaveformPlayer` accepts optional `peaks` prop for instant display (skips decode wait)
+
+### Session: January 20, 2026 (Phase 4 Completion)
+**What was done:**
+- Fixed WaveformPlayer AbortError on rapid accordion open/close:
+  - Switched to MediaElement backend (Audio element instead of fetch)
+  - Clear container children at START of useEffect (handles React Strict Mode)
+  - Cleanup stops audio but skips ws.destroy() to avoid race condition
+- Fixed duplicate waveform rendering in React Strict Mode
+- Fixed play/pause icon sync - now correctly shows playing state
+- Made practice status personal per user (not global to song):
+  - Created `userSongProgress` table with practiceStatus and personalNotes fields
+  - Updated SongCard, SongList, and songs page to use personal status
+  - Song detail header shows user's personal status
+  - Status filter tabs count personal progress
+- Added Personal Notes section to song detail sidebar (My Notes vs Band Notes)
+- Fixed duration display bug (was using peaks array length instead of actual duration)
+- Implemented archive/restore flow improvements:
+  - Changed "Delete" to "Archive" terminology throughout
+  - Storage kept intact on archive (NOT deleted immediately)
+  - Storage only deleted on "Permanently Delete" in archived files dialog
+  - Archive any file including primary - auto-promotes next file
+  - Metadata diff dialog shown when new primary has different detected values
+  - Restore sets file as primary if it's the only file, with metadata dialog
+  - `softDelete` and `restore` mutations return rich metadata for client UI
+- External link icon added to non-audio file rows
+- Phase 4 fully complete
+- Phase 5 (Tab Rendering) deferred until before Polish phase
+
+**Next steps:**
+- Begin Phase 6: Gear Settings (visual knob UI)
+- Or Phase 7: Training Tools (metronome, drone player)
+
+**Context to remember:**
+- Personal progress stored in `userSongProgress` table (per-user, per-song)
+- Archive keeps storage, "Permanently Delete" removes storage and reclaims quota
+- `softDelete` returns `{ archivedFileId, newPrimaryFileId, songId, hasConflict, songHasNoMetadata, detected, current }`
+- `restore` returns `{ restoredFileId, becamePrimary, songId, hasConflict, songHasNoMetadata, detected, current }`
+- WaveformPlayer uses MediaElement backend with manual container cleanup
+- Phase 5 skipped for now - no tab files available for testing

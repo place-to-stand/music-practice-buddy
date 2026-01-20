@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "../../../../../../convex/_generated/api";
@@ -28,8 +28,9 @@ export default function BandSongsPage() {
 
   const band = useQuery(api.bands.get, { id: bandId });
   const songs = useQuery(api.songs.listByBand, { bandId });
+  const userProgress = useQuery(api.userSongProgress.listByBand, { bandId });
 
-  const isLoading = band === undefined || songs === undefined;
+  const isLoading = band === undefined || songs === undefined || userProgress === undefined;
 
   // Not a member or band doesn't exist
   if (band === null) {
@@ -53,21 +54,27 @@ export default function BandSongsPage() {
     );
   }
 
-  // Filter songs by status
-  const filteredSongs = songs?.filter((song) => {
-    if (statusFilter === "all") return true;
-    return song.practiceStatus === statusFilter;
-  });
+  // Helper to get user's practice status for a song (defaults to "new")
+  const getUserStatus = (songId: string) => userProgress?.[songId]?.practiceStatus ?? "new";
 
-  // Get counts by status
-  const statusCounts = {
-    all: songs?.length ?? 0,
-    new: songs?.filter((s) => s.practiceStatus === "new").length ?? 0,
-    learning: songs?.filter((s) => s.practiceStatus === "learning").length ?? 0,
-    solid: songs?.filter((s) => s.practiceStatus === "solid").length ?? 0,
-    performance_ready:
-      songs?.filter((s) => s.practiceStatus === "performance_ready").length ?? 0,
-  };
+  // Filter songs by user's personal practice status
+  const filteredSongs = useMemo(() => {
+    if (!songs) return [];
+    if (statusFilter === "all") return songs;
+    return songs.filter((song) => getUserStatus(song._id) === statusFilter);
+  }, [songs, userProgress, statusFilter]);
+
+  // Get counts by user's personal status
+  const statusCounts = useMemo(() => {
+    if (!songs) return { all: 0, new: 0, learning: 0, solid: 0, performance_ready: 0 };
+    return {
+      all: songs.length,
+      new: songs.filter((s) => getUserStatus(s._id) === "new").length,
+      learning: songs.filter((s) => getUserStatus(s._id) === "learning").length,
+      solid: songs.filter((s) => getUserStatus(s._id) === "solid").length,
+      performance_ready: songs.filter((s) => getUserStatus(s._id) === "performance_ready").length,
+    };
+  }, [songs, userProgress]);
 
   return (
     <div className="space-y-6">
@@ -157,7 +164,7 @@ export default function BandSongsPage() {
               ))}
             </div>
           ) : filteredSongs && filteredSongs.length > 0 ? (
-            <SongList songs={filteredSongs} />
+            <SongList songs={filteredSongs} userProgress={userProgress} />
           ) : songs && songs.length > 0 ? (
             // Has songs but none match filter
             <Card>

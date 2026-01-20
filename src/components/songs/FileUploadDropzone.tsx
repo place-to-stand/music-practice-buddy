@@ -10,6 +10,23 @@ import { Progress } from "@/components/ui/progress";
 import { Upload, X, FileAudio, FileVideo, FileText, File } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFileUpload, detectFileType } from "@/hooks/useFileUpload";
+import { analyzeAudio, isAudioFile } from "@/lib/audio";
+
+export interface MetadataUpdateInfo {
+  songId: Id<"songs">;
+  hasConflict: boolean;
+  songHasNoMetadata: boolean;
+  detected: {
+    durationSeconds?: number;
+    tempo?: number;
+    key?: string;
+  };
+  current: {
+    durationSeconds?: number;
+    tempo?: number;
+    key?: string;
+  };
+}
 
 interface FileUploadDropzoneProps {
   songId: Id<"songs">;
@@ -21,6 +38,8 @@ interface FileUploadDropzoneProps {
   onDragStateChange?: (isDragging: boolean) => void;
   /** Render as full-card overlay (absolute positioned) */
   asOverlay?: boolean;
+  /** Called when audio analysis detects metadata that could update the song */
+  onMetadataDetected?: (info: MetadataUpdateInfo) => void;
 }
 
 export interface FileUploadDropzoneRef {
@@ -35,11 +54,15 @@ export const FileUploadDropzone = forwardRef<FileUploadDropzoneRef, FileUploadDr
     visible = true,
     onDragStateChange,
     asOverlay = false,
+    onMetadataDetected,
   }, ref) {
   const [isDragging, setIsDragging] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isUploading, progress, error, upload, reset } = useFileUpload();
   const saveSongFile = useMutation(api.files.saveSongFile);
+  const saveAudioAnalysis = useMutation(api.waveform.saveSongFileAnalysis);
+  const applySongMetadata = useMutation(api.waveform.applySongMetadata);
 
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
@@ -56,7 +79,7 @@ export const FileUploadDropzone = forwardRef<FileUploadDropzoneRef, FileUploadDr
 
       try {
         const fileType = detectFileType(file);
-        await saveSongFile({
+        const saveResult = await saveSongFile({
           songId,
           storageId: result.storageId,
           fileType,
@@ -66,13 +89,55 @@ export const FileUploadDropzone = forwardRef<FileUploadDropzoneRef, FileUploadDr
         });
         reset();
         onSuccess?.();
+
+        // If it's an audio file, analyze it in the background for waveform visualization
+        if (isAudioFile(result.mimeType) && fileType === "audio") {
+          setIsAnalyzing(true);
+          try {
+            const analysis = await analyzeAudio(file);
+            const analysisResult = await saveAudioAnalysis({
+              fileId: saveResult.fileId,
+              waveformPeaks: analysis.waveformPeaks,
+              durationSeconds: analysis.durationSeconds,
+              detectedTempo: analysis.detectedTempo,
+              detectedKey: analysis.detectedKey,
+              analysisConfidence: analysis.analysisConfidence,
+            });
+
+            // If this is a primary audio file and has metadata to potentially update
+            if (analysisResult.isPrimary && (
+              analysisResult.detected.durationSeconds !== undefined ||
+              analysisResult.detected.tempo !== undefined ||
+              analysisResult.detected.key !== undefined
+            )) {
+              // Auto-apply if song has no metadata, otherwise show confirmation dialog
+              if (analysisResult.songHasNoMetadata) {
+                // Auto-apply detected metadata
+                await applySongMetadata({
+                  songId: analysisResult.songId,
+                  durationSeconds: analysisResult.detected.durationSeconds,
+                  tempo: analysisResult.detected.tempo,
+                  key: analysisResult.detected.key,
+                });
+              } else if (analysisResult.hasConflict) {
+                // Show confirmation dialog
+                onMetadataDetected?.(analysisResult);
+              }
+            }
+          } catch (analysisErr) {
+            // Don't fail the upload if analysis fails - just log it
+            console.warn("Audio analysis failed:", analysisErr);
+          } finally {
+            setIsAnalyzing(false);
+          }
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to save file";
         onError?.(message);
         reset();
       }
     },
-    [upload, saveSongFile, songId, onSuccess, onError, error, reset]
+    [upload, saveSongFile, saveAudioAnalysis, applySongMetadata, songId, onSuccess, onError, onMetadataDetected, error, reset]
   );
 
   const handleDrop = useCallback(
@@ -113,25 +178,33 @@ export const FileUploadDropzone = forwardRef<FileUploadDropzoneRef, FileUploadDr
     [handleFile]
   );
 
-  // Always show when uploading
-  if (isUploading) {
+  // Always show when uploading or analyzing
+  if (isUploading || isAnalyzing) {
     return (
       <Card className="p-6">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Uploading...</span>
-            <span className="text-sm font-medium">{progress}%</span>
+            <span className="text-sm text-muted-foreground">
+              {isUploading ? "Uploading..." : "Analyzing audio..."}
+            </span>
+            {isUploading && <span className="text-sm font-medium">{progress}%</span>}
           </div>
-          <Progress value={progress} />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={reset}
-            className="w-full"
-          >
-            <X className="h-4 w-4 mr-2" />
-            Cancel
-          </Button>
+          {isUploading ? (
+            <Progress value={progress} />
+          ) : (
+            <Progress value={100} className="animate-pulse" />
+          )}
+          {isUploading && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={reset}
+              className="w-full"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+          )}
         </div>
       </Card>
     );
